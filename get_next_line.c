@@ -6,175 +6,94 @@
 /*   By: sbensarg <sbensarg@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/30 15:34:48 by sbensarg          #+#    #+#             */
-/*   Updated: 2019/11/07 16:21:15 by sbensarg         ###   ########.fr       */
+/*   Updated: 2019/11/20 22:56:41 by sbensarg         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include <fcntl.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
+#include "get_next_line.h"
 
-
-size_t		ft_strlen(const char *str)
+int		to_free(char **ptr)
 {
-	size_t i;
-
-	i = 0;
-	while (*str)
+	if (*ptr)
 	{
-		str++;
-		i++;
+		free(*ptr);
+		*ptr = NULL;
 	}
-	return (i);
+	return (-1);
 }
 
-void	*ft_memcpy(void *dest, const void *src, size_t n)
+int		verif_reste(char **rest, char **line)
 {
-	char	*psrc;
-	char	*pdest;
-	size_t	i;
+	char	*s;
+	char	*tmp;
 
-	if (!dest && !src)
-		return (NULL);
-	i = 0;
-	psrc = (char*)src;
-	pdest = (char*)dest;
-	while (i < n)
+	if (!*rest)
 	{
-		pdest[i] = psrc[i];
-		i++;
+		if ((*rest = ft_strdup("")) == NULL)
+			return (0);
 	}
-	return (dest);
+	else if ((s = ft_strchr(*rest, '\n')))
+	{
+		*s = '\0';
+		if ((*line = ft_strdup(*rest)) == NULL)
+			return (0);
+		tmp = *rest;
+		if ((*rest = ft_strdup(s + 1)) == NULL)
+			return (0);
+		to_free(&tmp);
+		return (1);
+	}
+	return (-1);
 }
 
-char	*ft_strjoin(char const *s1, char const *s2)
+int		ft_read(int fd, char **rest, char **line)
 {
-	int		lens1;
-	int		lens2;
-	int		sum;
-	char	*newstr;
+	char	*buf;
+	int		j;
+	char	*s;
 
-	if (s1 == NULL || s2 == NULL)
-		return (NULL);
-	lens1 = ft_strlen((char *)s1);
-	lens2 = ft_strlen((char *)s2);
-	sum = lens1 + lens2;
-	newstr = (char *)malloc(sum + 1);
-	if (newstr == NULL)
-		return (NULL);
-	ft_memcpy(newstr, s1, lens1);
-	ft_memcpy(newstr + lens1, s2, lens2 + 1);
-	return (newstr);
-}
-
-char	*ft_strchr(const char *s, int c)
-{
-	while (*s != c && *s != '\0')
+	if ((buf = malloc((BUFFER_SIZE + 1) * sizeof(char))) == NULL)
+		return (-1);
+	while ((j = read(fd, buf, BUFFER_SIZE)) > 0)
 	{
-		s++;
-	}
-	if (*s == c)
-	{
-		return ((char*)s);
-	}
-	else
-	{
-		return (NULL);
-	}
-}
-
-void	*ft_memset(void *b, int c, size_t len)
-{
-	unsigned char *ptr;
-
-	ptr = b;
-	while ((int)len > 0)
-	{
-		*ptr = c;
-		ptr++;
-		len--;
-	}
-	return (b);
-}
-
-void	*ft_calloc(size_t count, size_t size)
-{
-	size_t	total_bytes;
-	void	*ptr;
-
-	total_bytes = count * size;
-	ptr = malloc(total_bytes);
-	if (!ptr)
-		return (NULL);
-	ft_memset(ptr, 0, total_bytes);
-	return (ptr);
-}
-
-char *verif_reste(char *rest, char **line)
-{
-	char *s = NULL;
-	int slen;
-
-	slen = ft_strlen(rest);
-	if(rest)
-	{
-		if((s = ft_strchr(rest, '\n')))
+		buf[j] = '\0';
+		if ((*rest = ft_strjoin(rest, &buf)) == NULL)
+			return (-1);
+		if ((s = ft_strchr(*rest, '\n')))
 		{
+			to_free(&buf);
 			*s = '\0';
-			*line = ft_strdup(rest);
-			ft_memcpy(rest, s++, slen);
-		}
-		else
-		{
-			*line = ft_strdup(rest);
-			bzero(rest, slen);
+			*line = *rest;
+			if ((*rest = ft_strdup(s + 1)) == NULL)
+				return (-1);
+			return (1);
 		}
 	}
-	else
-		*line = ft_calloc(1, 1);
-	return (s);
+	to_free(&buf);
+	return (j);
 }
 
-
-int get_next_line(int fd, char **line)
+int		get_next_line(int fd, char **line)
 {
-	char buf[BUFFER_SIZE + 1];
-	char *s;
-	static char *rest;
-	int ret;
+	static char	*rest;
+	int			j;
+	int			k;
 
-	s = verif_reste(rest, line);
-	while ((ret = read(fd, buf, BUFFER_SIZE)))
+	if (fd < 0 || BUFFER_SIZE < 0 || !line)
+		return (-1);
+	if ((k = verif_reste(&rest, line)) == 0)
+		return (-1);
+	else if (k == 1)
+		return (1);
+	j = ft_read(fd, &rest, line);
+	if (j == -1)
+		return (to_free(&rest));
+	if (rest && j == 0)
 	{
-		buf[ret] = '\0';
-		if ((s = ft_strchr(buf, '\n')))
-		{
-			*s = '\0';
-			rest = ft_strdup(s++);
-			break;
-		}
-	*line = ft_strjoin(*line, buf);
+		if ((*line = ft_strdup(rest)) == NULL)
+			return (-1);
+		to_free(&rest);
+		return (0);
 	}
-	return (0);
-}
-
-int main()
-{
-	int fd;
-	char *line;
-
-	fd = open("test.txt", O_RDONLY);
-	get_next_line(fd, &line);
-	printf("%s\n", line);
-
-	get_next_line(fd, &line);
-	printf("%s\n", line);
-
-	get_next_line(fd, &line);
-	printf("%s\n", line);
-
-	get_next_line(fd, &line);
-	printf("%s\n", line);
+	return (j);
 }
